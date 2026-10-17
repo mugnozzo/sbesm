@@ -13,3 +13,16 @@ sbesm = "sbesm.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+files = ["src"]
