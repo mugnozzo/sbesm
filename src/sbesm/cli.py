@@ -3,6 +3,7 @@ import sys
 
 from sbesm import exitcodes
 from sbesm.errors import SbesmError
+from sbesm.logging_setup import configure_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -10,6 +11,10 @@ def build_parser() -> argparse.ArgumentParser:
         prog="sbesm",
         description="Simple But Easy Synchronization Manager",
     )
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument("-v", "--verbose", action="store_true")
+    verbosity.add_argument("-q", "--quiet", action="store_true")
+
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     init_parser = subparsers.add_parser(
@@ -35,6 +40,7 @@ def _dispatch(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    configure_logging(verbose=args.verbose, quiet=args.quiet)
     try:
         return _dispatch(args)
     except SbesmError as exc:
