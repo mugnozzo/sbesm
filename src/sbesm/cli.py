@@ -1,8 +1,10 @@
 import argparse
 import sys
+from pathlib import Path
 
 from sbesm import exitcodes
 from sbesm.errors import SbesmError
+from sbesm.init_cmd import cmd_init
 from sbesm.logging_setup import configure_logging
 
 
@@ -26,14 +28,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _cmd_init_stub(args: argparse.Namespace) -> int:
-    print(f"init: not implemented yet (root={args.root!r}, name={args.name!r})")
-    return exitcodes.NOT_IMPLEMENTED
+def _cmd_init(args: argparse.Namespace) -> int:
+    config = cmd_init(Path(args.root), name=args.name)
+    print(f"Initialized storage '{config.name}' (id={config.id}) at {args.root}")
+    return exitcodes.SUCCESS
 
 
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
-        return _cmd_init_stub(args)
+        return _cmd_init(args)
     return exitcodes.SUCCESS
 
 

@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 from sbesm.config import StorageConfig, write_storage_config
@@ -18,5 +19,8 @@ def cmd_init(root: Path, name: str | None = None) -> StorageConfig:
 
     write_storage_config(sbesm_dir / "config.toml", config)
     (sbesm_dir / "storage_id").write_text(storage_id)
+
+    (sbesm_dir / "logs").mkdir()
+    sqlite3.connect(sbesm_dir / "index.sqlite").close()
 
     return config

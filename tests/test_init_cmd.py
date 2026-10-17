@@ -10,6 +10,8 @@ def test_init_creates_config_and_marker(tmp_path):
 
     assert (root / ".sbesm" / "config.toml").exists()
     assert (root / ".sbesm" / "storage_id").read_text() == config.id
+    assert (root / ".sbesm" / "logs").is_dir()
+    assert (root / ".sbesm" / "index.sqlite").exists()
     assert config.name == "backup1"
 
 
