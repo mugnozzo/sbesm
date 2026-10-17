@@ -6,7 +6,7 @@ from sbesm.errors import UsageError
 
 def test_usage_error_maps_to_usage_error_exit_code():
     with mock.patch.object(cli, "_dispatch", side_effect=UsageError("bad args")):
-        code = cli.main([])
+        code = cli.main(["init", "/tmp/x"])
     assert code == exitcodes.USAGE_ERROR
 
 

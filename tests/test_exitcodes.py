@@ -9,6 +9,7 @@ def test_exit_codes_are_distinct():
         exitcodes.STORAGE_NOT_FOUND,
         exitcodes.IO_FAILURE,
         exitcodes.INTERRUPTED,
+        exitcodes.NOT_IMPLEMENTED,
     ]
     assert len(values) == len(set(values))
 
