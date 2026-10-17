@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=66"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sbesm"
+version = "0.1.0"
+description = "Simple But Easy Synchronization Manager: conservative one-way file sync and integrity checker"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
