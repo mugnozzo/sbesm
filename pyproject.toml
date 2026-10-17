@@ -8,5 +8,8 @@ version = "0.1.0"
 description = "Simple But Easy Synchronization Manager: conservative one-way file sync and integrity checker"
 requires-python = ">=3.11"
 
+[project.scripts]
+sbesm = "sbesm.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
