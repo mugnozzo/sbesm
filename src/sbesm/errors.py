@@ -19,3 +19,15 @@ class IOFailureError(SbesmError):
 
 class OperationInterruptedError(SbesmError):
     exit_code = exitcodes.INTERRUPTED
+
+
+class StorageUnavailableError(StorageNotFoundError):
+    pass
+
+
+class StorageIdentityMismatchError(StorageNotFoundError):
+    pass
+
+
+class AmbiguousStorageError(StorageNotFoundError):
+    pass

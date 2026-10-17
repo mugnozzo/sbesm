@@ -35,3 +35,15 @@ def test_init_defaults_name_to_root_dirname(tmp_path):
     root = tmp_path / "my_storage"
     config = cmd_init(root)
     assert config.name == "my_storage"
+
+
+def test_init_records_detected_filesystem_uuid(tmp_path, monkeypatch):
+    from sbesm import init_cmd
+
+    monkeypatch.setattr(init_cmd, "detect_filesystem_uuid", lambda *a, **k: "MOCK-UUID")
+    monkeypatch.setattr(init_cmd, "is_mounted_and_responsive", lambda *a, **k: True)
+
+    root = tmp_path / "storage1"
+    config = cmd_init(root, name="backup1")
+
+    assert config.filesystem_uuid == "MOCK-UUID"
