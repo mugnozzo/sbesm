@@ -34,7 +34,7 @@ def normalize_selector(selector: str) -> str:
 def normalize_selection(selectors: list[str]) -> NormalizedSelection:
     normalized = sorted(
         {normalize_selector(selector) for selector in selectors},
-        key=lambda s: s.count("/"),
+        key=lambda s: (s.count("/"), s),
     )
 
     kept: list[str] = []

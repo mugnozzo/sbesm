@@ -1,7 +1,7 @@
-import sqlite3
 from pathlib import Path
 
 from sbesm.config import StorageConfig, write_storage_config
+from sbesm.db import initialize_index_db
 from sbesm.errors import StorageUnavailableError
 from sbesm.fsident import detect_filesystem_uuid, is_mounted_and_responsive
 from sbesm.identity import generate_storage_id
@@ -32,6 +32,6 @@ def cmd_init(root: Path, name: str | None = None) -> StorageConfig:
     (sbesm_dir / "storage_id").write_text(storage_id)
 
     (sbesm_dir / "logs").mkdir()
-    sqlite3.connect(sbesm_dir / "index.sqlite").close()
+    initialize_index_db(sbesm_dir / "index.sqlite", storage_id)
 
     return config
