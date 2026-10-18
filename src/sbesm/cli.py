@@ -3,8 +3,10 @@ import sys
 from pathlib import Path
 
 from sbesm import exitcodes
+from sbesm.accept_cmd import cmd_accept
 from sbesm.config import read_storage_config
 from sbesm.db import connect
+from sbesm.duplicates import find_duplicates, verify_duplicate_groups
 from sbesm.errors import SbesmError
 from sbesm.indexing import has_findings, render_preview, run_index
 from sbesm.init_cmd import cmd_init
@@ -13,6 +15,7 @@ from sbesm.register_cmd import cmd_register
 from sbesm.registry import classify_registry, load_registry
 from sbesm.resolve import resolve_storage
 from sbesm.status import compute_category_presence, compute_counts, last_run_summary
+from sbesm.verify import has_verify_findings, render_verify_summary, run_verify
 from sbesm.xdg import config_home
 
 
@@ -51,6 +54,21 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status", help="Show storage status")
     status_parser.add_argument("storage")
     status_parser.add_argument("--folder")
+
+    verify_parser = subparsers.add_parser("verify", help="Verify indexed files against their reference hashes")
+    verify_parser.add_argument("storage")
+    verify_parser.add_argument("--folder")
+
+    accept_parser = subparsers.add_parser("accept", help="Accept a new reference hash for a file")
+    accept_parser.add_argument("storage")
+    accept_parser.add_argument("--path", required=True, dest="path")
+    accept_parser.add_argument("--apply", action="store_true")
+
+    duplicates_parser = subparsers.add_parser("duplicates", help="Report files sharing identical content")
+    duplicates_parser.add_argument("storage")
+    duplicates_parser.add_argument("--folder")
+    duplicates_parser.add_argument("--min-size", type=int, default=0, dest="min_size")
+    duplicates_parser.add_argument("--verify", action="store_true")
 
     return parser
 
@@ -128,6 +146,62 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return exitcodes.SUCCESS
 
 
+def _cmd_verify(args: argparse.Namespace) -> int:
+    root = resolve_storage(args.storage)
+    db_path = root / ".sbesm" / "index.sqlite"
+    scope = [args.folder] if args.folder else None
+
+    result = run_verify(root, db_path, scope=scope)
+    print("verify:")
+    print(render_verify_summary(result.entries))
+    print(f"log: {result.log_path}")
+
+    if has_verify_findings(result.entries):
+        return exitcodes.FINDINGS
+    return exitcodes.SUCCESS
+
+
+def _cmd_accept(args: argparse.Namespace) -> int:
+    root = resolve_storage(args.storage)
+    db_path = root / ".sbesm" / "index.sqlite"
+
+    result = cmd_accept(root, db_path, args.path, apply=args.apply)
+    print(f"accept {args.path!r}: old={result.old_hash} new={result.new_hash}")
+    if result.applied:
+        print("Applied: reference hash updated.")
+    else:
+        print("Preview only: pass --apply to replace the reference hash.")
+    return exitcodes.SUCCESS
+
+
+def _cmd_duplicates(args: argparse.Namespace) -> int:
+    root = resolve_storage(args.storage)
+    db_path = root / ".sbesm" / "index.sqlite"
+    conn = connect(db_path)
+    try:
+        groups = find_duplicates(conn, min_size=args.min_size, scope=args.folder)
+    finally:
+        conn.close()
+
+    if not groups:
+        print("No duplicates found (index-based).")
+        return exitcodes.SUCCESS
+
+    if args.verify:
+        verified_groups = verify_duplicate_groups(root, groups)
+        for vg in verified_groups:
+            print(f"sha256={vg.sha256} size={vg.size}")
+            print(f"  verified duplicates: {vg.verified_paths}")
+            if vg.stale_paths:
+                print(f"  stale-index (not confirmed): {vg.stale_paths}")
+    else:
+        print("Duplicates (index-based, not re-verified):")
+        for group in groups:
+            print(f"sha256={group.sha256} size={group.size} paths={group.paths}")
+
+    return exitcodes.FINDINGS
+
+
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
         return _cmd_init(args)
@@ -139,6 +213,12 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_index(args)
     if args.command == "status":
         return _cmd_status(args)
+    if args.command == "verify":
+        return _cmd_verify(args)
+    if args.command == "accept":
+        return _cmd_accept(args)
+    if args.command == "duplicates":
+        return _cmd_duplicates(args)
     return exitcodes.SUCCESS
 
 
