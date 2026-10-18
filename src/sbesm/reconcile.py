@@ -6,7 +6,14 @@ from enum import Enum
 from pathlib import Path
 
 from sbesm.config import read_storage_config
-from sbesm.db import FileRow, connect, get_file_row, list_file_rows, upsert_file_row
+from sbesm.db import (
+    FileRow,
+    connect,
+    get_file_row,
+    list_file_rows,
+    storage_write_lock,
+    upsert_file_row,
+)
 from sbesm.errors import UsageError
 from sbesm.fsident import detect_filesystem_type
 from sbesm.hashing import NotHashableError, UnstableFileError, hash_file_stable
@@ -231,7 +238,8 @@ def run_reconcile(
             target_root = root_a if entry.updated_side == "a" else root_b
             target_db = a_db_path if entry.updated_side == "a" else b_db_path
             _apply_mtime(target_root / entry.relative_path, entry.target_mtime_ns)
-            _refresh_mtime_in_index(target_db, entry.relative_path, entry.target_mtime_ns)
+            with storage_write_lock(target_db.parent):
+                _refresh_mtime_in_index(target_db, entry.relative_path, entry.target_mtime_ns)
 
     log_path = _write_reconcile_log(b_db_path.parent, apply, policy, entries)
     return ReconcileResult(entries=entries, log_path=log_path)

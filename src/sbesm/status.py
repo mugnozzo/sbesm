@@ -17,7 +17,10 @@ class CategoryPresence:
 def compute_category_presence(root: Path, config: StorageConfig, conn: sqlite3.Connection) -> CategoryPresence:
     expected = set(config.known_categories)
     present = set(discover_categories(root))
-    indexed = {row.path.split("/", 1)[0] for row in list_file_rows(conn)}
+    # a row's first path segment is only a "category" when the row is
+    # actually nested under a first-level directory; a loose top-level file
+    # has no "/" in its path and must not be reported as if it were one.
+    indexed = {row.path.split("/", 1)[0] for row in list_file_rows(conn) if "/" in row.path}
     return CategoryPresence(expected=expected, present=present, indexed=indexed)
 
 

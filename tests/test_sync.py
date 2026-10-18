@@ -113,6 +113,30 @@ def test_apply_with_overwrite_conflicts_copies_source_version(tmp_path):
     assert (dest / "a.txt").read_text() == "source version"
 
 
+def test_overwrite_conflicts_forces_checksum_past_coincidental_mtime_match(tmp_path):
+    # regression test: rsync's default quick-check trusts size+mtime, not
+    # content. Two same-size files that happen to share an mtime (seen in
+    # practice on some filesystems for two independent, rapid writes) would
+    # make plain `rsync -a` silently skip a real content difference. Since
+    # sbesm's own conflict detection already proved these differ, approving
+    # --overwrite-conflicts must still actually overwrite.
+    import os
+
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (source / "a.txt").write_text("source vers")  # same length as below
+    (dest / "a.txt").write_text("dest versio")
+    shared_ns = source.stat().st_mtime_ns
+    os.utime(source / "a.txt", ns=(shared_ns, shared_ns))
+    os.utime(dest / "a.txt", ns=(shared_ns, shared_ns))
+    run_index(source, source / ".sbesm" / "index.sqlite", apply=True)
+    run_index(dest, dest / ".sbesm" / "index.sqlite", apply=True)
+
+    run_sync(source, dest, None, apply=True, overwrite_conflicts=True)
+
+    assert (dest / "a.txt").read_text() == "source vers"
+
+
 def test_preview_never_requires_overwrite_conflicts(tmp_path):
     source = _make_storage(tmp_path, "source")
     dest = _make_storage(tmp_path, "dest")

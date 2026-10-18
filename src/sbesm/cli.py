@@ -308,6 +308,9 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         print(f"  {label}: {[e.relative_path for e in result.dest_only]}")
     print(f"log: {result.log_path}")
 
+    if any(o.rsync_returncode not in (0, None) for o in result.outcomes):
+        return exitcodes.IO_FAILURE
+
     # a successful --apply can only have reached this point with conflicts
     # already explicitly approved via --overwrite-conflicts (run_sync refuses
     # otherwise), so they're resolved, not a remaining finding.

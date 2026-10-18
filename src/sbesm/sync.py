@@ -13,7 +13,13 @@ _CONFLICT_STATUSES = {DiffStatus.DIFFERENT, DiffStatus.TYPE_MISMATCH}
 
 
 def build_rsync_command(
-    source: Path, dest: Path, *, dry_run: bool, delete: bool = False, update: bool = False
+    source: Path,
+    dest: Path,
+    *,
+    dry_run: bool,
+    delete: bool = False,
+    update: bool = False,
+    checksum: bool = False,
 ) -> list[str]:
     cmd = [
         "rsync",
@@ -29,6 +35,15 @@ def build_rsync_command(
         cmd.append("--update")
     if delete:
         cmd.append("--delete")
+    if checksum:
+        # rsync's default quick-check trusts size+mtime, not content. That's
+        # usually the right performance trade-off, but it means a coincidental
+        # size+mtime match (seen in practice on some overlay filesystems for
+        # two rapid, independent writes) can make rsync silently skip a file
+        # we've already proven differs in content. When the operator has
+        # explicitly approved overwriting a known conflict, correctness must
+        # win: force a real content comparison instead of trusting metadata.
+        cmd.append("--checksum")
 
     # trailing slash on a directory source means "sync its contents into dest",
     # not "nest the directory one level deeper" -- matches the spec's baseline
@@ -173,7 +188,14 @@ def run_sync(
 
             dest_path = dest_root / selector
             dest_path.parent.mkdir(parents=True, exist_ok=True)
-            cmd = build_rsync_command(source_path, dest_path, dry_run=not apply, delete=delete, update=update)
+            cmd = build_rsync_command(
+                source_path,
+                dest_path,
+                dry_run=not apply,
+                delete=delete,
+                update=update,
+                checksum=overwrite_conflicts,
+            )
             try:
                 proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
             except FileNotFoundError as exc:

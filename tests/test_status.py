@@ -40,6 +40,20 @@ def test_category_presence_distinguishes_expected_present_indexed(tmp_path):
     assert presence.indexed == {"documents"}
 
 
+def test_loose_root_file_never_counted_as_an_indexed_category(tmp_path):
+    root, db_path = _make_storage(tmp_path)
+    (root / "loose.txt").write_text("x")
+
+    config = StorageConfig(id="x", name="x")
+    run_index(root, db_path, apply=True)
+
+    conn = connect(db_path)
+    presence = compute_category_presence(root, config, conn)
+    conn.close()
+
+    assert presence.indexed == set()  # loose.txt is a file, not a category
+
+
 # --- 2.6.2 counts/bytes aggregation ------------------------------------------
 
 

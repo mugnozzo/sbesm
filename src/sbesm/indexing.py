@@ -11,6 +11,7 @@ from sbesm.db import (
     finish_run,
     list_file_rows,
     start_run,
+    storage_write_lock,
     upsert_file_row,
 )
 from sbesm.hashing import hash_file_stable
@@ -261,20 +262,21 @@ def run_index(
         ]
 
         if apply:
-            run_id = start_run(conn, "index")
-            try:
-                _apply_classified_entries(conn, results)
-                conn.commit()
-            except KeyboardInterrupt:
-                conn.rollback()
-                finish_run(conn, run_id, "interrupted")
-                raise
-            except BaseException:
-                conn.rollback()
-                finish_run(conn, run_id, "failed")
-                raise
-            else:
-                finish_run(conn, run_id, "success")
+            with storage_write_lock(db_path.parent):
+                run_id = start_run(conn, "index")
+                try:
+                    _apply_classified_entries(conn, results)
+                    conn.commit()
+                except KeyboardInterrupt:
+                    conn.rollback()
+                    finish_run(conn, run_id, "interrupted")
+                    raise
+                except BaseException:
+                    conn.rollback()
+                    finish_run(conn, run_id, "failed")
+                    raise
+                else:
+                    finish_run(conn, run_id, "success")
 
         log_path = _write_run_log(db_path.parent, plan_only, apply, results)
         return IndexResult(entries=results, log_path=log_path)

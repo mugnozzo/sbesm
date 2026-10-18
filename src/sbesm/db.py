@@ -11,10 +11,13 @@ from sbesm.migrations import MIGRATIONS, apply_migrations
 
 
 def connect(path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=5000")
+    try:
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+    except sqlite3.Error as exc:
+        raise IOFailureError(f"could not open storage index at {path}: {exc}") from exc
     return conn
 
 
