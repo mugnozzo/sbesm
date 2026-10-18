@@ -15,9 +15,17 @@ class StorageConfig:
     preserve_partial: bool = True
     delete_by_default: bool = False
     hashing_algorithm: str = "sha256"
+    mtime_tolerance_ns: int | None = None  # None = auto-detect from filesystem type
 
 
 def write_storage_config(path: Path, config: StorageConfig) -> None:
+    sync_table: dict[str, object] = {
+        "preserve_partial": config.preserve_partial,
+        "delete_by_default": config.delete_by_default,
+    }
+    if config.mtime_tolerance_ns is not None:
+        sync_table["mtime_tolerance_ns"] = config.mtime_tolerance_ns
+
     data = {
         "storage": {
             "id": config.id,
@@ -31,10 +39,7 @@ def write_storage_config(path: Path, config: StorageConfig) -> None:
             name: {"categories": categories}
             for name, categories in config.profiles.items()
         },
-        "sync": {
-            "preserve_partial": config.preserve_partial,
-            "delete_by_default": config.delete_by_default,
-        },
+        "sync": sync_table,
         "hashing": {
             "algorithm": config.hashing_algorithm,
         },
@@ -64,4 +69,5 @@ def read_storage_config(path: Path) -> StorageConfig:
         preserve_partial=sync.get("preserve_partial", True),
         delete_by_default=sync.get("delete_by_default", False),
         hashing_algorithm=hashing.get("algorithm", "sha256"),
+        mtime_tolerance_ns=sync.get("mtime_tolerance_ns"),
     )

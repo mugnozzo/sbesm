@@ -18,3 +18,23 @@ def test_round_trip_preserves_all_fields(tmp_path):
     loaded = read_storage_config(path)
 
     assert loaded == original
+
+
+def test_round_trip_preserves_explicit_mtime_tolerance_override(tmp_path):
+    original = StorageConfig(id="x", name="x", mtime_tolerance_ns=3_000_000)
+    path = tmp_path / "config.toml"
+
+    write_storage_config(path, original)
+    loaded = read_storage_config(path)
+
+    assert loaded.mtime_tolerance_ns == 3_000_000
+
+
+def test_mtime_tolerance_defaults_to_none_when_unset(tmp_path):
+    original = StorageConfig(id="x", name="x")
+    path = tmp_path / "config.toml"
+
+    write_storage_config(path, original)
+    loaded = read_storage_config(path)
+
+    assert loaded.mtime_tolerance_ns is None

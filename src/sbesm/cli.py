@@ -13,6 +13,7 @@ from sbesm.indexing import has_findings, render_preview, run_index
 from sbesm.init_cmd import cmd_init
 from sbesm.logging_setup import configure_logging
 from sbesm.profiles import load_local_profiles
+from sbesm.reconcile import has_reconcile_findings, render_reconcile_summary, run_reconcile
 from sbesm.register_cmd import cmd_register
 from sbesm.registry import classify_registry, load_registry
 from sbesm.resolve import resolve_storage
@@ -93,6 +94,20 @@ def build_parser() -> argparse.ArgumentParser:
     sync_parser.add_argument("--update", action="store_true")
     sync_parser.add_argument("--overwrite-conflicts", action="store_true", dest="overwrite_conflicts")
     sync_parser.add_argument("--apply", action="store_true")
+
+    reconcile_parser = subparsers.add_parser(
+        "reconcile", help="Reconcile mtimes between two storages for proven-equal content"
+    )
+    reconcile_parser.add_argument("storage_a")
+    reconcile_parser.add_argument("storage_b")
+    reconcile_parser.add_argument("--all", action="store_true")
+    reconcile_parser.add_argument("--profile")
+    reconcile_parser.add_argument("--folder", action="append", default=[], dest="folders")
+    reconcile_parser.add_argument("--path", action="append", default=[], dest="paths")
+    reconcile_parser.add_argument(
+        "--mtime", choices=["oldest", "newest", "source"], default="oldest", dest="mtime_policy"
+    )
+    reconcile_parser.add_argument("--apply", action="store_true")
 
     return parser
 
@@ -301,6 +316,33 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     return exitcodes.SUCCESS
 
 
+def _cmd_reconcile(args: argparse.Namespace) -> int:
+    root_a = resolve_storage(args.storage_a)
+    root_b = resolve_storage(args.storage_b)
+    config_a = read_storage_config(root_a / ".sbesm" / "config.toml")
+    local_profiles = load_local_profiles(config_home() / "profiles.toml")
+
+    spec = SelectionSpec(all=args.all, profile=args.profile, folders=args.folders, paths=args.paths)
+    # mirrors sync's directional convention: resolve against A, reuse for B.
+    side_a = resolve_side(spec, root_a, config_a, local_profiles)
+
+    for warning in side_a.warnings:
+        print(f"warning: {warning}")
+    if side_a.other_contents is not None:
+        print(f"'other' resolved to: {side_a.other_contents}")
+
+    result = run_reconcile(root_a, root_b, side_a.selectors, policy=args.mtime_policy, apply=args.apply)
+
+    mode = "APPLY" if args.apply else "DRY RUN"
+    print(f"reconcile [{mode}] --mtime {args.mtime_policy}:")
+    print(render_reconcile_summary(result.entries))
+    print(f"log: {result.log_path}")
+
+    if has_reconcile_findings(result.entries):
+        return exitcodes.FINDINGS
+    return exitcodes.SUCCESS
+
+
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
         return _cmd_init(args)
@@ -322,6 +364,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_diff(args)
     if args.command == "sync":
         return _cmd_sync(args)
+    if args.command == "reconcile":
+        return _cmd_reconcile(args)
     return exitcodes.SUCCESS
 
 

@@ -11,6 +11,7 @@ from sbesm.errors import (
 )
 from sbesm.fsident import (
     check_storage_id_marker,
+    detect_filesystem_type,
     detect_filesystem_uuid,
     find_cloned_ids,
     is_mounted_and_responsive,
@@ -18,6 +19,21 @@ from sbesm.fsident import (
 )
 
 # --- 1.3.1 block-device UUID lookup -----------------------------------------
+
+
+def test_detect_filesystem_type_returns_fstype_of_matching_mount(tmp_path):
+    mnt = tmp_path / "mnt"
+    mnt.mkdir()
+    mounts_file = tmp_path / "mounts"
+    mounts_file.write_text(f"/dev/sdb1 {mnt} ext4 rw,relatime 0 0\n")
+
+    assert detect_filesystem_type(mnt, proc_mounts_path=str(mounts_file)) == "ext4"
+
+
+def test_detect_filesystem_type_returns_none_when_unresolved(tmp_path):
+    mounts_file = tmp_path / "mounts"
+    mounts_file.write_text("/dev/sdb1 /somewhere/else ext4 rw,relatime 0 0\n")
+    assert detect_filesystem_type(tmp_path, proc_mounts_path=str(mounts_file)) is None
 
 
 def test_detect_filesystem_uuid_finds_matching_mount(tmp_path):

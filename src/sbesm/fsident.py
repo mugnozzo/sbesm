@@ -42,6 +42,11 @@ def _find_mount_entry(
     return best
 
 
+def detect_filesystem_type(path: Path, proc_mounts_path: str = "/proc/mounts") -> str | None:
+    entry = _find_mount_entry(path, proc_mounts_path)
+    return entry[2] if entry is not None else None
+
+
 def detect_filesystem_uuid(
     path: Path,
     proc_mounts_path: str = "/proc/mounts",
