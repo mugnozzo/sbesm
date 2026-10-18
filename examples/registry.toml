@@ -1,0 +1,10 @@
+# Sample ~/.config/sbesm/registry.toml -- maintained automatically by
+# `sbesm register`; shown here just so the shape is clear. Edit by hand only
+# if a storage's root path has moved and you'd rather fix the entry than
+# re-register.
+
+[storages.backup1]
+storage_id = "11111111-2222-3333-4444-555555555555"
+last_known_root = "/mnt/backup1"
+filesystem_uuid = "ABCD-1234"
+last_seen_at = "2026-01-01T00:00:00+00:00"

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import tomli_w
 
+from sbesm.errors import StorageNotFoundError
 from sbesm.fsident import find_cloned_ids, is_mounted_and_responsive
 
 
@@ -54,6 +55,30 @@ def upsert_entry(path: Path, entry: RegistryEntry) -> None:
     entries = load_registry(path)
     entries[entry.name] = entry
     save_registry(path, entries)
+
+
+def find_entry_by_name_or_root(entries: dict[str, RegistryEntry], identifier: str) -> RegistryEntry:
+    if identifier in entries:
+        return entries[identifier]
+
+    resolved = str(Path(identifier).resolve())
+    for entry in entries.values():
+        if entry.last_known_root == resolved:
+            return entry
+
+    raise StorageNotFoundError(f"{identifier!r} is not a registered storage name or path")
+
+
+def remove_entry(path: Path, name: str) -> None:
+    entries = load_registry(path)
+    if name in entries:
+        del entries[name]
+        save_registry(path, entries)
+
+
+def find_entries_by_root(entries: dict[str, RegistryEntry], root: Path) -> list[RegistryEntry]:
+    resolved = str(root.resolve())
+    return [entry for entry in entries.values() if entry.last_known_root == resolved]
 
 
 def classify_registry(entries: dict[str, RegistryEntry]) -> dict[str, str]:

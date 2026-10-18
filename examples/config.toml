@@ -1,0 +1,29 @@
+# Sample .sbesm/config.toml -- this is what `sbesm init` generates for you;
+# edit known_categories/profiles by hand afterwards if you like, but leave
+# [storage] alone (id/filesystem_uuid are how sbesm recognizes this disk).
+
+[storage]
+id = "11111111-2222-3333-4444-555555555555"
+name = "backup1"
+filesystem_uuid = "ABCD-1234"
+
+[categories]
+known = ["documents", "photos", "videos", "music", "projects"]
+
+[profiles.work]
+categories = ["documents", "projects"]
+
+[profiles.media]
+categories = ["photos", "videos", "music"]
+
+[profiles.everything]
+categories = ["documents", "photos", "videos", "music", "projects", "other"]
+
+[sync]
+preserve_partial = true
+delete_by_default = false
+# Uncomment to override the auto-detected filesystem mtime tolerance:
+# mtime_tolerance_ns = 2000000
+
+[hashing]
+algorithm = "sha256"

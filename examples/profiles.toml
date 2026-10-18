@@ -1,0 +1,9 @@
+# Sample ~/.config/sbesm/profiles.toml -- profiles defined here apply across
+# ANY storage (by category name) and take precedence over a same-named
+# profile embedded in a storage's own .sbesm/config.toml.
+
+[profiles.work]
+categories = ["documents", "projects"]
+
+[profiles.media]
+categories = ["photos", "videos", "music"]

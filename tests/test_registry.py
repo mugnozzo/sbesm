@@ -1,8 +1,14 @@
+import pytest
+
 from sbesm import cli
+from sbesm.errors import StorageNotFoundError
 from sbesm.registry import (
     RegistryEntry,
     classify_registry,
+    find_entries_by_root,
+    find_entry_by_name_or_root,
     load_registry,
+    remove_entry,
     save_registry,
     upsert_entry,
 )
@@ -103,3 +109,46 @@ def test_register_twice_updates_existing_entry(tmp_path, monkeypatch):
     registry_path = tmp_path / ".config" / "sbesm" / "registry.toml"
     entries = load_registry(registry_path)
     assert len(entries) == 1
+
+
+# --- find_entry_by_name_or_root / remove_entry / find_entries_by_root ------
+
+
+def test_find_entry_by_exact_name(tmp_path):
+    entry = RegistryEntry("disk1", "id-1", str(tmp_path / "root"), None, "t")
+    entries = {"disk1": entry}
+    assert find_entry_by_name_or_root(entries, "disk1") == entry
+
+
+def test_find_entry_by_matching_root_path(tmp_path):
+    root = tmp_path / "root"
+    entry = RegistryEntry("disk1", "id-1", str(root), None, "t")
+    entries = {"disk1": entry}
+    assert find_entry_by_name_or_root(entries, str(root)) == entry
+
+
+def test_find_entry_raises_when_not_found(tmp_path):
+    with pytest.raises(StorageNotFoundError):
+        find_entry_by_name_or_root({}, "nonexistent")
+
+
+def test_remove_entry_deletes_and_is_idempotent(tmp_path):
+    path = tmp_path / "registry.toml"
+    entry = RegistryEntry("disk1", "id-1", str(tmp_path / "root"), None, "t")
+    save_registry(path, {"disk1": entry})
+
+    remove_entry(path, "disk1")
+    assert load_registry(path) == {}
+
+    remove_entry(path, "disk1")  # second call is a no-op, not an error
+    assert load_registry(path) == {}
+
+
+def test_find_entries_by_root_matches_resolved_path(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    entry = RegistryEntry("disk1", "id-1", str(root.resolve()), None, "t")
+    other = RegistryEntry("disk2", "id-2", str(tmp_path / "elsewhere"), None, "t")
+    entries = {"disk1": entry, "disk2": other}
+
+    assert find_entries_by_root(entries, root) == [entry]

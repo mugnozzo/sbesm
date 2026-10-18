@@ -15,11 +15,18 @@ from sbesm.logging_setup import configure_logging
 from sbesm.profiles import load_local_profiles
 from sbesm.reconcile import has_reconcile_findings, render_reconcile_summary, run_reconcile
 from sbesm.register_cmd import cmd_register
-from sbesm.registry import classify_registry, load_registry
+from sbesm.registry import (
+    classify_registry,
+    find_entries_by_root,
+    find_entry_by_name_or_root,
+    load_registry,
+    remove_entry,
+)
 from sbesm.resolve import resolve_storage
 from sbesm.scope import SelectionSpec, resolve_side
 from sbesm.status import compute_category_presence, compute_counts, last_run_summary
 from sbesm.sync import run_sync
+from sbesm.uninit_cmd import cmd_uninit
 from sbesm.verify import has_verify_findings, render_verify_summary, run_verify
 from sbesm.xdg import config_home
 
@@ -46,6 +53,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     register_parser.add_argument("root")
     register_parser.add_argument("--name")
+
+    unregister_parser = subparsers.add_parser(
+        "unregister", help="Remove a storage from the local registry"
+    )
+    unregister_parser.add_argument("storage")
+    unregister_parser.add_argument("-y", "--yes", action="store_true")
+
+    uninit_parser = subparsers.add_parser(
+        "uninit", help="Remove a storage's .sbesm directory (destructive)"
+    )
+    uninit_parser.add_argument("storage")
+    uninit_parser.add_argument("--apply", action="store_true")
+    uninit_parser.add_argument("-y", "--yes", action="store_true")
 
     subparsers.add_parser("storages", help="List registered storages")
 
@@ -121,6 +141,62 @@ def _cmd_init(args: argparse.Namespace) -> int:
 def _cmd_register(args: argparse.Namespace) -> int:
     entry = cmd_register(Path(args.root), name=args.name)
     print(f"Registered '{entry.name}' -> {entry.last_known_root} (id={entry.storage_id})")
+    return exitcodes.SUCCESS
+
+
+def _confirm(prompt: str) -> bool:
+    try:
+        answer = input(prompt).strip().lower()
+    except EOFError:
+        return False  # no real answer available -> never proceed destructively
+    return answer in ("y", "yes")
+
+
+def _cmd_unregister(args: argparse.Namespace) -> int:
+    registry_path = config_home() / "registry.toml"
+    entries = load_registry(registry_path)
+    entry = find_entry_by_name_or_root(entries, args.storage)
+
+    if not args.yes and not _confirm(
+        f"Unregister '{entry.name}' (root={entry.last_known_root})? [y/N]: "
+    ):
+        print("Aborted.")
+        return exitcodes.SUCCESS
+
+    remove_entry(registry_path, entry.name)
+    print(f"Unregistered '{entry.name}'.")
+    return exitcodes.SUCCESS
+
+
+def _cmd_uninit(args: argparse.Namespace) -> int:
+    root = resolve_storage(args.storage)
+    preview = cmd_uninit(root, apply=False)
+
+    print(f"Would remove {preview.sbesm_dir} (storage_id={preview.storage_id}, "
+          f"{preview.log_file_count} log file(s)). Your files are not touched.")
+
+    if not args.apply:
+        print("Pass --apply to actually remove it.")
+        return exitcodes.SUCCESS
+
+    if not args.yes and not _confirm(
+        f"Delete {preview.sbesm_dir}? This removes all indexing history for "
+        f"this storage. [y/N]: "
+    ):
+        print("Aborted.")
+        return exitcodes.SUCCESS
+
+    cmd_uninit(root, apply=True)
+    print(f"Removed {preview.sbesm_dir}.")
+
+    registry_path = config_home() / "registry.toml"
+    entries = load_registry(registry_path)
+    stale = find_entries_by_root(entries, root)
+    for entry in stale:
+        remove_entry(registry_path, entry.name)
+    if stale:
+        print(f"Also removed now-stale registry entry: {[e.name for e in stale]}")
+
     return exitcodes.SUCCESS
 
 
@@ -351,6 +427,10 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_init(args)
     if args.command == "register":
         return _cmd_register(args)
+    if args.command == "unregister":
+        return _cmd_unregister(args)
+    if args.command == "uninit":
+        return _cmd_uninit(args)
     if args.command == "storages":
         return _cmd_storages(args)
     if args.command == "index":
