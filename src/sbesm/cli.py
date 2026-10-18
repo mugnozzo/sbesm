@@ -18,6 +18,7 @@ from sbesm.registry import classify_registry, load_registry
 from sbesm.resolve import resolve_storage
 from sbesm.scope import SelectionSpec, resolve_side
 from sbesm.status import compute_category_presence, compute_counts, last_run_summary
+from sbesm.sync import run_sync
 from sbesm.verify import has_verify_findings, render_verify_summary, run_verify
 from sbesm.xdg import config_home
 
@@ -80,6 +81,18 @@ def build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("--profile")
     diff_parser.add_argument("--folder", action="append", default=[], dest="folders")
     diff_parser.add_argument("--path", action="append", default=[], dest="paths")
+
+    sync_parser = subparsers.add_parser("sync", help="One-way synchronization from SOURCE to DEST")
+    sync_parser.add_argument("source")
+    sync_parser.add_argument("dest")
+    sync_parser.add_argument("--all", action="store_true")
+    sync_parser.add_argument("--profile")
+    sync_parser.add_argument("--folder", action="append", default=[], dest="folders")
+    sync_parser.add_argument("--path", action="append", default=[], dest="paths")
+    sync_parser.add_argument("--delete", action="store_true")
+    sync_parser.add_argument("--update", action="store_true")
+    sync_parser.add_argument("--overwrite-conflicts", action="store_true", dest="overwrite_conflicts")
+    sync_parser.add_argument("--apply", action="store_true")
 
     return parser
 
@@ -239,6 +252,55 @@ def _cmd_diff(args: argparse.Namespace) -> int:
     return exitcodes.SUCCESS
 
 
+def _cmd_sync(args: argparse.Namespace) -> int:
+    source_root = resolve_storage(args.source)
+    dest_root = resolve_storage(args.dest)
+    source_config = read_storage_config(source_root / ".sbesm" / "config.toml")
+    local_profiles = load_local_profiles(config_home() / "profiles.toml")
+
+    spec = SelectionSpec(all=args.all, profile=args.profile, folders=args.folders, paths=args.paths)
+    # sync is directional: the selection is resolved against SOURCE (what to
+    # copy), and the same selector list is applied to DEST's path layout --
+    # unlike diff, DEST does not get its own independently-resolved 'other'.
+    source_side = resolve_side(spec, source_root, source_config, local_profiles)
+
+    for warning in source_side.warnings:
+        print(f"warning: {warning}")
+    if source_side.other_contents is not None:
+        print(f"'other' resolved to: {source_side.other_contents}")
+
+    result = run_sync(
+        source_root,
+        dest_root,
+        source_side.selectors,
+        delete=args.delete,
+        update=args.update,
+        overwrite_conflicts=args.overwrite_conflicts,
+        apply=args.apply,
+    )
+
+    mode = "APPLY" if args.apply else "DRY RUN"
+    print(f"sync [{mode}]:")
+    for outcome in result.outcomes:
+        if outcome.skipped_reason:
+            print(f"  {outcome.selector}: skipped ({outcome.skipped_reason})")
+        else:
+            print(f"  {outcome.selector}: rsync exit={outcome.rsync_returncode}")
+    if result.conflicts:
+        print(f"  conflicts: {[e.relative_path for e in result.conflicts]}")
+    if result.dest_only:
+        label = "deletion candidates" if args.delete else "destination-only (preserved)"
+        print(f"  {label}: {[e.relative_path for e in result.dest_only]}")
+    print(f"log: {result.log_path}")
+
+    # a successful --apply can only have reached this point with conflicts
+    # already explicitly approved via --overwrite-conflicts (run_sync refuses
+    # otherwise), so they're resolved, not a remaining finding.
+    if result.conflicts and not result.applied:
+        return exitcodes.FINDINGS
+    return exitcodes.SUCCESS
+
+
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
         return _cmd_init(args)
@@ -258,6 +320,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_duplicates(args)
     if args.command == "diff":
         return _cmd_diff(args)
+    if args.command == "sync":
+        return _cmd_sync(args)
     return exitcodes.SUCCESS
 
 
