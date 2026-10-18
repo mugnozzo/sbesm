@@ -6,6 +6,9 @@ from sbesm import exitcodes
 from sbesm.errors import SbesmError
 from sbesm.init_cmd import cmd_init
 from sbesm.logging_setup import configure_logging
+from sbesm.register_cmd import cmd_register
+from sbesm.registry import classify_registry, load_registry
+from sbesm.xdg import config_home
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,6 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("root")
     init_parser.add_argument("--name")
 
+    register_parser = subparsers.add_parser(
+        "register", help="Register an already-initialized storage"
+    )
+    register_parser.add_argument("root")
+    register_parser.add_argument("--name")
+
+    subparsers.add_parser("storages", help="List registered storages")
+
     return parser
 
 
@@ -34,9 +45,33 @@ def _cmd_init(args: argparse.Namespace) -> int:
     return exitcodes.SUCCESS
 
 
+def _cmd_register(args: argparse.Namespace) -> int:
+    entry = cmd_register(Path(args.root), name=args.name)
+    print(f"Registered '{entry.name}' -> {entry.last_known_root} (id={entry.storage_id})")
+    return exitcodes.SUCCESS
+
+
+def _cmd_storages(args: argparse.Namespace) -> int:
+    path = config_home() / "registry.toml"
+    entries = load_registry(path)
+    if not entries:
+        print("No registered storages.")
+        return exitcodes.SUCCESS
+
+    availability = classify_registry(entries)
+    for name in sorted(entries):
+        entry = entries[name]
+        print(f"{name}\t{availability[name]}\t{entry.last_known_root}\t(id={entry.storage_id})")
+    return exitcodes.SUCCESS
+
+
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
         return _cmd_init(args)
+    if args.command == "register":
+        return _cmd_register(args)
+    if args.command == "storages":
+        return _cmd_storages(args)
     return exitcodes.SUCCESS
 
 
