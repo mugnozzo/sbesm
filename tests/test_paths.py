@@ -1,7 +1,7 @@
 import pytest
 
 from sbesm.errors import UsageError
-from sbesm.paths import validate_root_candidate
+from sbesm.paths import validate_root_candidate, validate_selector_containment
 
 
 def test_rejects_nonexistent_and_uncreatable(tmp_path):
@@ -44,3 +44,58 @@ def test_accepts_valid_candidate(tmp_path):
 def test_accepts_creatable_missing_root(tmp_path):
     candidate = tmp_path / "to_be_created"
     validate_root_candidate(candidate)
+
+
+# --- validate_selector_containment ------------------------------------------
+
+
+def test_containment_allows_normal_selector(tmp_path):
+    root = tmp_path / "root"
+    (root / "documents").mkdir(parents=True)
+    validate_selector_containment(root, "documents")  # should not raise
+
+
+def test_containment_allows_nonexistent_selector(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    validate_selector_containment(root, "not_created_yet")  # should not raise
+
+
+def test_containment_rejects_symlink_escaping_root(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "documents").symlink_to(outside)
+
+    with pytest.raises(UsageError):
+        validate_selector_containment(root, "documents")
+
+
+def test_containment_rejects_broken_symlink_escaping_root(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "documents").symlink_to(tmp_path / "does_not_exist_at_all")
+
+    with pytest.raises(UsageError):
+        validate_selector_containment(root, "documents")
+
+
+def test_containment_allows_symlink_pointing_inside_root(tmp_path):
+    root = tmp_path / "root"
+    real = root / "real_archive"
+    real.mkdir(parents=True)
+    (root / "documents").symlink_to(real)
+
+    validate_selector_containment(root, "documents")  # should not raise
+
+
+def test_containment_catches_escape_via_deep_selector(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (root / "documents").symlink_to(outside)
+
+    with pytest.raises(UsageError):
+        validate_selector_containment(root, "documents/subdir")

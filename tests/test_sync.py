@@ -268,3 +268,85 @@ def test_partial_dir_excluded_from_post_sync_index(tmp_path):
     row = get_file_row(conn, ".rsync-partial/leftover.tmp")
     conn.close()
     assert row is None
+
+
+# --- regression: Bug 1, dry-run creating destination directories ------------
+
+
+def test_preview_with_nested_missing_selector_creates_nothing_on_disk(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (source / "documents" / "archive").mkdir(parents=True)
+    (source / "documents" / "archive" / "a.txt").write_text("hello")
+    # dest has NO "documents" directory at all yet
+
+    run_sync(source, dest, ["documents/archive"])  # preview, apply defaults False
+
+    assert not (dest / "documents").exists()
+
+
+def test_apply_with_nested_missing_selector_still_creates_destination_dirs(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (source / "documents" / "archive").mkdir(parents=True)
+    (source / "documents" / "archive" / "a.txt").write_text("hello")
+
+    run_sync(source, dest, ["documents/archive"], apply=True)
+
+    assert (dest / "documents" / "archive" / "a.txt").read_text() == "hello"
+
+
+# --- regression: Bug 2, symlinked selector escaping the storage root -------
+
+
+def test_symlinked_source_selector_is_rejected(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("should never be touched")
+    (source / "documents").symlink_to(outside)
+
+    with pytest.raises(UsageError):
+        run_sync(source, dest, ["documents"], apply=True)
+
+    assert not (dest / "documents").exists()
+
+
+def test_symlinked_dest_selector_is_rejected(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (source / "documents").mkdir()
+    (source / "documents" / "a.txt").write_text("hello")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "precious.txt").write_text("should never be touched")
+    (dest / "documents").symlink_to(outside)
+
+    with pytest.raises(UsageError):
+        run_sync(source, dest, ["documents"], apply=True, delete=True)
+
+    assert (outside / "precious.txt").read_text() == "should never be touched"
+
+
+def test_symlinked_selector_rejected_even_in_preview(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (source / "documents").symlink_to(outside)
+
+    with pytest.raises(UsageError):
+        run_sync(source, dest, ["documents"])  # preview, no --apply
+
+
+def test_symlink_pointing_inside_root_is_still_allowed(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    real = source / "real_archive"
+    real.mkdir()
+    (real / "a.txt").write_text("hello")
+    (source / "documents").symlink_to(real)
+
+    result = run_sync(source, dest, ["documents"], apply=True)
+    assert all(o.skipped_reason is None for o in result.outcomes)

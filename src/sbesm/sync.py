@@ -7,6 +7,7 @@ from sbesm.diff import DiffEntry, DiffStatus, run_diff
 from sbesm.errors import IOFailureError, StorageUnavailableError, UsageError
 from sbesm.fsident import is_mounted_and_responsive
 from sbesm.indexing import run_index
+from sbesm.paths import validate_selector_containment
 from sbesm.scope import ResolvedSide
 
 _CONFLICT_STATUSES = {DiffStatus.DIFFERENT, DiffStatus.TYPE_MISMATCH}
@@ -175,6 +176,16 @@ def run_sync(
     try:
         for selector in names:
             source_path = source_root / selector
+            dest_path = dest_root / selector
+            # refuse a selector whose resolved path escapes its storage root
+            # (e.g. via a symlinked first-level entry) on EITHER side, before
+            # doing anything else with it -- rsync -a won't follow a symlink
+            # it finds *inside* a synced tree, but a selector's own top-level
+            # path component is handed to rsync as a literal argument, so a
+            # symlink there is resolved by the OS when rsync opens it.
+            validate_selector_containment(source_root, selector)
+            validate_selector_containment(dest_root, selector)
+
             if not source_path.exists():
                 # never risk deleting dest's copy just because source lacks it
                 # right now (invariant: a missing source category/path never
@@ -186,8 +197,8 @@ def run_sync(
                 )
                 continue
 
-            dest_path = dest_root / selector
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            if apply:
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
             cmd = build_rsync_command(
                 source_path,
                 dest_path,
