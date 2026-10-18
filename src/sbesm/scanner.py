@@ -74,3 +74,41 @@ def walk_root(root: Path, scope: list[str] | None = None) -> list[ScannedEntry]:
             # existing DB rows, not by the scanner.
 
     return sorted(entries, key=lambda e: e.relative_path)
+
+
+def _collect_directories(dir_path: Path, rel_prefix: str, dirs: set[str]) -> None:
+    try:
+        children = sorted(dir_path.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return
+
+    for child in children:
+        if child.name in _EXCLUDED_NAMES:
+            continue
+        if child.is_dir() and not child.is_symlink():
+            rel_path = f"{rel_prefix}/{child.name}" if rel_prefix else child.name
+            dirs.add(rel_path)
+            _collect_directories(child, rel_path, dirs)
+
+
+def list_directory_paths(root: Path, scope: list[str] | None = None) -> set[str]:
+    """Relative paths of every directory within scope (excluding the root itself).
+
+    Used by diff to detect a directory on one side colliding with a regular
+    file/symlink leaf at the same relative path on the other side -- a case
+    `walk_root` alone can't reveal, since it never emits an entry for a
+    directory itself, only for its leaf contents.
+    """
+    root = Path(root)
+    dirs: set[str] = set()
+
+    if scope is None:
+        _collect_directories(root, "", dirs)
+    else:
+        for selector in normalize_selection(scope).paths:
+            target = root / selector
+            if target.is_dir() and not target.is_symlink():
+                dirs.add(selector)
+                _collect_directories(target, selector, dirs)
+
+    return dirs

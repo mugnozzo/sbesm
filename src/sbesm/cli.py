@@ -6,14 +6,17 @@ from sbesm import exitcodes
 from sbesm.accept_cmd import cmd_accept
 from sbesm.config import read_storage_config
 from sbesm.db import connect
+from sbesm.diff import has_diff_findings, render_diff_report, run_diff
 from sbesm.duplicates import find_duplicates, verify_duplicate_groups
 from sbesm.errors import SbesmError
 from sbesm.indexing import has_findings, render_preview, run_index
 from sbesm.init_cmd import cmd_init
 from sbesm.logging_setup import configure_logging
+from sbesm.profiles import load_local_profiles
 from sbesm.register_cmd import cmd_register
 from sbesm.registry import classify_registry, load_registry
 from sbesm.resolve import resolve_storage
+from sbesm.scope import SelectionSpec, resolve_side
 from sbesm.status import compute_category_presence, compute_counts, last_run_summary
 from sbesm.verify import has_verify_findings, render_verify_summary, run_verify
 from sbesm.xdg import config_home
@@ -69,6 +72,14 @@ def build_parser() -> argparse.ArgumentParser:
     duplicates_parser.add_argument("--folder")
     duplicates_parser.add_argument("--min-size", type=int, default=0, dest="min_size")
     duplicates_parser.add_argument("--verify", action="store_true")
+
+    diff_parser = subparsers.add_parser("diff", help="Compare two storages")
+    diff_parser.add_argument("source")
+    diff_parser.add_argument("dest")
+    diff_parser.add_argument("--all", action="store_true")
+    diff_parser.add_argument("--profile")
+    diff_parser.add_argument("--folder", action="append", default=[], dest="folders")
+    diff_parser.add_argument("--path", action="append", default=[], dest="paths")
 
     return parser
 
@@ -202,6 +213,32 @@ def _cmd_duplicates(args: argparse.Namespace) -> int:
     return exitcodes.FINDINGS
 
 
+def _cmd_diff(args: argparse.Namespace) -> int:
+    source_root = resolve_storage(args.source)
+    dest_root = resolve_storage(args.dest)
+    source_config = read_storage_config(source_root / ".sbesm" / "config.toml")
+    dest_config = read_storage_config(dest_root / ".sbesm" / "config.toml")
+    local_profiles = load_local_profiles(config_home() / "profiles.toml")
+
+    spec = SelectionSpec(all=args.all, profile=args.profile, folders=args.folders, paths=args.paths)
+    source_side = resolve_side(spec, source_root, source_config, local_profiles)
+    dest_side = resolve_side(spec, dest_root, dest_config, local_profiles)
+
+    for label, side in (("SOURCE", source_side), ("DEST", dest_side)):
+        for warning in side.warnings:
+            print(f"[{label}] warning: {warning}")
+        if side.other_contents is not None:
+            print(f"[{label}] 'other' resolved to: {side.other_contents}")
+
+    entries = run_diff(source_side, dest_side)
+    print("diff:")
+    print(render_diff_report(entries))
+
+    if has_diff_findings(entries):
+        return exitcodes.FINDINGS
+    return exitcodes.SUCCESS
+
+
 def _dispatch(args: argparse.Namespace) -> int:
     if args.command == "init":
         return _cmd_init(args)
@@ -219,6 +256,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_accept(args)
     if args.command == "duplicates":
         return _cmd_duplicates(args)
+    if args.command == "diff":
+        return _cmd_diff(args)
     return exitcodes.SUCCESS
 
 
