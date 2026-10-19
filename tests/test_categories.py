@@ -34,6 +34,23 @@ def test_resolve_other_excludes_sbesm(tmp_path):
     assert other == ["loose_file.txt"]
 
 
+def test_discover_categories_skips_excluded_directory(tmp_path):
+    root = _make_root(tmp_path)
+    (root / "node_modules").mkdir()
+    assert discover_categories(root, exclude_patterns=["node_modules"]) == [
+        "documents",
+        "photos",
+        "projects",
+    ]
+
+
+def test_resolve_other_skips_excluded_names(tmp_path):
+    root = _make_root(tmp_path)
+    (root / "node_modules").mkdir()
+    other = resolve_other(root, known=["documents", "photos"], exclude_patterns=["node_modules"])
+    assert other == ["loose_file.txt", "projects"]
+
+
 def test_validate_profiles_accepts_known_categories_and_other():
     config = StorageConfig(
         id="x",

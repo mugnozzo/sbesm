@@ -218,9 +218,16 @@ def _cmd_index(args: argparse.Namespace) -> int:
     root = resolve_storage(args.storage)
     db_path = root / ".sbesm" / "index.sqlite"
     scope = [args.folder] if args.folder else None
+    config = read_storage_config(root / ".sbesm" / "config.toml")
 
     result = run_index(
-        root, db_path, scope=scope, plan_only=args.plan_only, rehash=args.rehash, apply=args.apply
+        root,
+        db_path,
+        scope=scope,
+        plan_only=args.plan_only,
+        rehash=args.rehash,
+        apply=args.apply,
+        exclude_patterns=config.exclude_patterns,
     )
     mode = "APPLY" if args.apply else "DRY RUN"
     print(f"index [{mode}]:")
@@ -265,8 +272,9 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     root = resolve_storage(args.storage)
     db_path = root / ".sbesm" / "index.sqlite"
     scope = [args.folder] if args.folder else None
+    config = read_storage_config(root / ".sbesm" / "config.toml")
 
-    result = run_verify(root, db_path, scope=scope)
+    result = run_verify(root, db_path, scope=scope, exclude_patterns=config.exclude_patterns)
     print("verify:")
     print(render_verify_summary(result.entries))
     print(f"log: {result.log_path}")

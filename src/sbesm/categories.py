@@ -2,21 +2,24 @@ from pathlib import Path
 
 from sbesm.config import StorageConfig
 from sbesm.errors import UsageError
+from sbesm.exclude import is_name_excluded
 
 
-def discover_categories(root: Path) -> list[str]:
+def discover_categories(root: Path, exclude_patterns: list[str] | None = None) -> list[str]:
+    patterns = exclude_patterns or []
     return sorted(
         entry.name
         for entry in Path(root).iterdir()
-        if entry.is_dir() and entry.name != ".sbesm"
+        if entry.is_dir() and entry.name != ".sbesm" and not is_name_excluded(entry.name, patterns)
     )
 
 
-def resolve_other(root: Path, known: list[str]) -> list[str]:
+def resolve_other(root: Path, known: list[str], exclude_patterns: list[str] | None = None) -> list[str]:
     known_set = set(known)
+    patterns = exclude_patterns or []
     unlisted: list[str] = []
     for entry in Path(root).iterdir():
-        if entry.name == ".sbesm":
+        if entry.name == ".sbesm" or is_name_excluded(entry.name, patterns):
             continue
         if entry.is_dir():
             if entry.name not in known_set:

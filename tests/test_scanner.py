@@ -30,6 +30,24 @@ def test_excludes_sbesm_and_partial_dir_at_any_depth(tmp_path):
     assert not any(".rsync-partial" in p for p in paths)
 
 
+def test_exclude_patterns_skip_matching_names_at_any_depth(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / ".venv").mkdir()
+    (root / ".venv" / "pyvenv.cfg").write_text("x")
+    (root / "project").mkdir()
+    (root / "project" / "__pycache__").mkdir()
+    (root / "project" / "__pycache__" / "mod.pyc").write_text("x")
+    (root / "project" / "main.py").write_text("code")
+
+    entries = walk_root(root, exclude_patterns=[".venv", "__pycache__"])
+    paths = {e.relative_path for e in entries}
+
+    assert "project/main.py" in paths
+    assert not any(".venv" in p for p in paths)
+    assert not any("__pycache__" in p for p in paths)
+
+
 def test_scope_restricts_to_selected_subtree(tmp_path):
     root = tmp_path / "root"
     root.mkdir()

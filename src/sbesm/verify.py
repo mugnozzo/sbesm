@@ -105,11 +105,15 @@ class VerifyRunResult:
 
 
 def run_verify(
-    root: Path, db_path: Path, *, scope: list[str] | None = None
+    root: Path,
+    db_path: Path,
+    *,
+    scope: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
 ) -> VerifyRunResult:
     conn = connect(db_path)
     try:
-        scanned_by_path = {e.relative_path: e for e in walk_root(root, scope)}
+        scanned_by_path = {e.relative_path: e for e in walk_root(root, scope, exclude_patterns)}
         existing_by_path = {r.path: r for r in list_file_rows(conn)}
 
         if scope is not None:

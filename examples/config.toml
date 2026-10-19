@@ -27,3 +27,11 @@ delete_by_default = false
 
 [hashing]
 algorithm = "sha256"
+
+# Opt-in: names/globs excluded from scanning, indexing, verifying, diffing,
+# and syncing -- matched against each individual file/directory name at any
+# depth (not the full path), e.g. a nested "project/.venv" is excluded by
+# just ".venv". Nothing is excluded by default; uncomment and edit as needed.
+[exclude]
+patterns = []
+# patterns = ["__pycache__", ".venv", "*.pyc", "node_modules", ".git"]

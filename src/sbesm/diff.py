@@ -88,8 +88,13 @@ def _diff_one(
 
 
 def run_diff(source: ResolvedSide, dest: ResolvedSide) -> list[DiffEntry]:
-    source_scanned = {e.relative_path: e for e in walk_root(source.root, source.selectors)}
-    dest_scanned = {e.relative_path: e for e in walk_root(dest.root, dest.selectors)}
+    source_scanned = {
+        e.relative_path: e
+        for e in walk_root(source.root, source.selectors, source.exclude_patterns)
+    }
+    dest_scanned = {
+        e.relative_path: e for e in walk_root(dest.root, dest.selectors, dest.exclude_patterns)
+    }
 
     source_conn = connect(source.root / ".sbesm" / "index.sqlite")
     dest_conn = connect(dest.root / ".sbesm" / "index.sqlite")
@@ -100,8 +105,8 @@ def run_diff(source: ResolvedSide, dest: ResolvedSide) -> list[DiffEntry]:
         source_conn.close()
         dest_conn.close()
 
-    source_dirs = list_directory_paths(source.root, source.selectors)
-    dest_dirs = list_directory_paths(dest.root, dest.selectors)
+    source_dirs = list_directory_paths(source.root, source.selectors, source.exclude_patterns)
+    dest_dirs = list_directory_paths(dest.root, dest.selectors, dest.exclude_patterns)
 
     all_paths = sorted(set(source_scanned) | set(dest_scanned) | source_dirs | dest_dirs)
     return [

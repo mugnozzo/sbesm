@@ -235,6 +235,19 @@ def test_render_preview_lists_all_changed_paths_no_truncation(tmp_path):
 # --- 2.4.4 / 2.4.5 preview never mutates the DB ------------------------------
 
 
+def test_excluded_directory_never_appears_in_index(tmp_path):
+    root, db_path = _make_storage(tmp_path)
+    (root / "keep.txt").write_text("hello")
+    (root / ".venv").mkdir()
+    (root / ".venv" / "lib.py").write_text("junk")
+
+    result = run_index(root, db_path, apply=True, exclude_patterns=[".venv"])
+    paths = {e.relative_path for e in result.entries}
+
+    assert "keep.txt" in paths
+    assert not any(".venv" in p for p in paths)
+
+
 def test_default_preview_never_mutates_db_file(tmp_path):
     root, db_path = _make_storage(tmp_path)
     (root / "a.txt").write_text("hello")

@@ -3,6 +3,7 @@ import stat
 from dataclasses import dataclass
 from pathlib import Path
 
+from sbesm.exclude import is_name_excluded
 from sbesm.selectors import normalize_selection
 
 _EXCLUDED_NAMES = {".sbesm", ".rsync-partial"}
@@ -39,34 +40,39 @@ def _classify_entry(path: Path, rel_path: str) -> ScannedEntry:
     return ScannedEntry(rel_path, "unreadable", None, None, path)
 
 
-def _walk_dir(dir_path: Path, rel_prefix: str, entries: list[ScannedEntry]) -> None:
+def _walk_dir(
+    dir_path: Path, rel_prefix: str, entries: list[ScannedEntry], exclude_patterns: list[str]
+) -> None:
     try:
         children = sorted(dir_path.iterdir(), key=lambda p: p.name)
     except OSError:
         return
 
     for child in children:
-        if child.name in _EXCLUDED_NAMES:
+        if child.name in _EXCLUDED_NAMES or is_name_excluded(child.name, exclude_patterns):
             continue
         rel_path = f"{rel_prefix}/{child.name}" if rel_prefix else child.name
         if child.is_dir() and not child.is_symlink():
-            _walk_dir(child, rel_path, entries)
+            _walk_dir(child, rel_path, entries, exclude_patterns)
         else:
             entries.append(_classify_entry(child, rel_path))
 
 
-def walk_root(root: Path, scope: list[str] | None = None) -> list[ScannedEntry]:
+def walk_root(
+    root: Path, scope: list[str] | None = None, exclude_patterns: list[str] | None = None
+) -> list[ScannedEntry]:
     root = Path(root)
     entries: list[ScannedEntry] = []
+    patterns = exclude_patterns or []
 
     if scope is None:
-        _walk_dir(root, "", entries)
+        _walk_dir(root, "", entries, patterns)
     else:
         normalized = normalize_selection(scope)
         for selector in normalized.paths:
             target = root / selector
             if target.is_dir() and not target.is_symlink():
-                _walk_dir(target, selector, entries)
+                _walk_dir(target, selector, entries, patterns)
             elif target.exists() or target.is_symlink():
                 entries.append(_classify_entry(target, selector))
             # a selector that doesn't exist on disk yields no entries here;
@@ -76,22 +82,26 @@ def walk_root(root: Path, scope: list[str] | None = None) -> list[ScannedEntry]:
     return sorted(entries, key=lambda e: e.relative_path)
 
 
-def _collect_directories(dir_path: Path, rel_prefix: str, dirs: set[str]) -> None:
+def _collect_directories(
+    dir_path: Path, rel_prefix: str, dirs: set[str], exclude_patterns: list[str]
+) -> None:
     try:
         children = sorted(dir_path.iterdir(), key=lambda p: p.name)
     except OSError:
         return
 
     for child in children:
-        if child.name in _EXCLUDED_NAMES:
+        if child.name in _EXCLUDED_NAMES or is_name_excluded(child.name, exclude_patterns):
             continue
         if child.is_dir() and not child.is_symlink():
             rel_path = f"{rel_prefix}/{child.name}" if rel_prefix else child.name
             dirs.add(rel_path)
-            _collect_directories(child, rel_path, dirs)
+            _collect_directories(child, rel_path, dirs, exclude_patterns)
 
 
-def list_directory_paths(root: Path, scope: list[str] | None = None) -> set[str]:
+def list_directory_paths(
+    root: Path, scope: list[str] | None = None, exclude_patterns: list[str] | None = None
+) -> set[str]:
     """Relative paths of every directory within scope (excluding the root itself).
 
     Used by diff to detect a directory on one side colliding with a regular
@@ -101,14 +111,15 @@ def list_directory_paths(root: Path, scope: list[str] | None = None) -> set[str]
     """
     root = Path(root)
     dirs: set[str] = set()
+    patterns = exclude_patterns or []
 
     if scope is None:
-        _collect_directories(root, "", dirs)
+        _collect_directories(root, "", dirs, patterns)
     else:
         for selector in normalize_selection(scope).paths:
             target = root / selector
             if target.is_dir() and not target.is_symlink():
                 dirs.add(selector)
-                _collect_directories(target, selector, dirs)
+                _collect_directories(target, selector, dirs, patterns)
 
     return dirs

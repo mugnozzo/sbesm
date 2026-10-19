@@ -2,6 +2,7 @@ import hashlib
 
 import pytest
 
+from sbesm.config import read_storage_config, write_storage_config
 from sbesm.db import connect, get_file_row
 from sbesm.errors import StorageUnavailableError, UsageError
 from sbesm.indexing import run_index
@@ -13,6 +14,13 @@ def _make_storage(tmp_path, name):
     root = tmp_path / name
     cmd_init(root, name=name)
     return root
+
+
+def _set_exclude_patterns(root, patterns):
+    config_path = root / ".sbesm" / "config.toml"
+    config = read_storage_config(config_path)
+    config.exclude_patterns = patterns
+    write_storage_config(config_path, config)
 
 
 # --- 5.1 safe rsync command builder ------------------------------------------
@@ -313,6 +321,34 @@ def test_apply_with_nested_missing_selector_still_creates_destination_dirs(tmp_p
 
 
 # --- regression: Bug 2, symlinked selector escaping the storage root -------
+
+
+def test_excluded_dest_only_directory_is_never_a_deletion_candidate(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (dest / ".venv").mkdir()
+    (dest / ".venv" / "pyvenv.cfg").write_text("junk")
+    _set_exclude_patterns(dest, [".venv"])
+
+    result = run_sync(source, dest, None, delete=True, apply=True)
+
+    assert (dest / ".venv" / "pyvenv.cfg").exists()
+    assert not any(e.relative_path.startswith(".venv") for e in result.dest_only)
+
+
+def test_excluded_nested_directory_is_not_physically_copied(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    (source / "project").mkdir()
+    (source / "project" / "main.py").write_text("code")
+    (source / "project" / "__pycache__").mkdir()
+    (source / "project" / "__pycache__" / "mod.pyc").write_text("junk")
+    _set_exclude_patterns(source, ["__pycache__"])
+
+    run_sync(source, dest, ["project"], apply=True)
+
+    assert (dest / "project" / "main.py").exists()
+    assert not (dest / "project" / "__pycache__").exists()
 
 
 def test_symlinked_source_selector_is_rejected(tmp_path):

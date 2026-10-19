@@ -16,6 +16,7 @@ class StorageConfig:
     delete_by_default: bool = False
     hashing_algorithm: str = "sha256"
     mtime_tolerance_ns: int | None = None  # None = auto-detect from filesystem type
+    exclude_patterns: list[str] = field(default_factory=list)
 
 
 def write_storage_config(path: Path, config: StorageConfig) -> None:
@@ -43,6 +44,9 @@ def write_storage_config(path: Path, config: StorageConfig) -> None:
         "hashing": {
             "algorithm": config.hashing_algorithm,
         },
+        "exclude": {
+            "patterns": config.exclude_patterns,
+        },
     }
     path.write_text(tomli_w.dumps(data))
 
@@ -56,6 +60,7 @@ def read_storage_config(path: Path) -> StorageConfig:
     profiles_raw = data.get("profiles", {})
     sync = data.get("sync", {})
     hashing = data.get("hashing", {})
+    exclude = data.get("exclude", {})
 
     return StorageConfig(
         id=storage["id"],
@@ -70,4 +75,5 @@ def read_storage_config(path: Path) -> StorageConfig:
         delete_by_default=sync.get("delete_by_default", False),
         hashing_algorithm=hashing.get("algorithm", "sha256"),
         mtime_tolerance_ns=sync.get("mtime_tolerance_ns"),
+        exclude_patterns=list(exclude.get("patterns", [])),
     )

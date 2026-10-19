@@ -3,8 +3,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sbesm.config import read_storage_config
 from sbesm.diff import DiffEntry, DiffStatus, run_diff
 from sbesm.errors import IOFailureError, StorageUnavailableError, UsageError
+from sbesm.exclude import is_name_excluded
 from sbesm.fsident import is_mounted_and_responsive
 from sbesm.indexing import run_index
 from sbesm.paths import validate_selector_containment
@@ -21,6 +23,7 @@ def build_rsync_command(
     delete: bool = False,
     update: bool = False,
     checksum: bool = False,
+    exclude_patterns: list[str] | None = None,
 ) -> list[str]:
     cmd = [
         "rsync",
@@ -30,6 +33,8 @@ def build_rsync_command(
         "--info=progress2",
         "--exclude=/.sbesm/",
     ]
+    for pattern in exclude_patterns or []:
+        cmd.append(f"--exclude={pattern}")
     if dry_run:
         cmd.append("--dry-run")
     if update:
@@ -71,12 +76,21 @@ def _validate_no_root_overlap(source_root: Path, dest_root: Path) -> None:
         )
 
 
-def _top_level_names(root: Path) -> set[str]:
-    return {p.name for p in root.iterdir() if p.name != ".sbesm"}
+def _top_level_names(root: Path, exclude_patterns: list[str]) -> set[str]:
+    return {
+        p.name
+        for p in root.iterdir()
+        if p.name != ".sbesm" and not is_name_excluded(p.name, exclude_patterns)
+    }
 
 
-def _detect_conflicts(source_root: Path, dest_root: Path, selectors: list[str]) -> list[DiffEntry]:
-    return run_diff(ResolvedSide(source_root, selectors), ResolvedSide(dest_root, selectors))
+def _detect_conflicts(
+    source_root: Path, dest_root: Path, selectors: list[str], exclude_patterns: list[str]
+) -> list[DiffEntry]:
+    return run_diff(
+        ResolvedSide(source_root, selectors, exclude_patterns=exclude_patterns),
+        ResolvedSide(dest_root, selectors, exclude_patterns=exclude_patterns),
+    )
 
 
 @dataclass
@@ -131,11 +145,19 @@ def _write_sync_log(
     return log_path
 
 
-def _post_sync_reindex(dest_root: Path, outcomes: list[SelectorSyncOutcome]) -> None:
+def _post_sync_reindex(
+    dest_root: Path, outcomes: list[SelectorSyncOutcome], exclude_patterns: list[str]
+) -> None:
     dest_db_path = dest_root / ".sbesm" / "index.sqlite"
     for outcome in outcomes:
         if outcome.skipped_reason is None and outcome.rsync_returncode == 0:
-            run_index(dest_root, dest_db_path, scope=[outcome.selector], apply=True)
+            run_index(
+                dest_root,
+                dest_db_path,
+                scope=[outcome.selector],
+                apply=True,
+                exclude_patterns=exclude_patterns,
+            )
 
 
 def run_sync(
@@ -150,13 +172,20 @@ def run_sync(
 ) -> SyncResult:
     _validate_no_root_overlap(source_root, dest_root)
 
+    # a pattern excluded on either side stays invisible on both: otherwise a
+    # path excluded only in source's config could still surface as a
+    # "dest-only" deletion candidate, or vice versa.
+    source_config = read_storage_config(source_root / ".sbesm" / "config.toml")
+    dest_config = read_storage_config(dest_root / ".sbesm" / "config.toml")
+    exclude_patterns = sorted(set(source_config.exclude_patterns) | set(dest_config.exclude_patterns))
+
     names = (
-        sorted(_top_level_names(source_root) | _top_level_names(dest_root))
+        sorted(_top_level_names(source_root, exclude_patterns) | _top_level_names(dest_root, exclude_patterns))
         if selectors is None
         else selectors
     )
 
-    diff_entries = _detect_conflicts(source_root, dest_root, names)
+    diff_entries = _detect_conflicts(source_root, dest_root, names, exclude_patterns)
     conflicts = [e for e in diff_entries if e.status in _CONFLICT_STATUSES]
     dest_only = [e for e in diff_entries if e.status == DiffStatus.DEST_ONLY]
 
@@ -206,6 +235,7 @@ def run_sync(
                 delete=delete,
                 update=update,
                 checksum=overwrite_conflicts,
+                exclude_patterns=exclude_patterns,
             )
             try:
                 proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
@@ -221,7 +251,7 @@ def run_sync(
     log_path = _write_sync_log(dest_root / ".sbesm", apply, names, conflicts, dest_only, outcomes)
 
     if apply:
-        _post_sync_reindex(dest_root, outcomes)
+        _post_sync_reindex(dest_root, outcomes, exclude_patterns)
 
     return SyncResult(
         selectors=names,

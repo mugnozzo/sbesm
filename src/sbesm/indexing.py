@@ -235,11 +235,12 @@ def run_index(
     plan_only: bool = False,
     rehash: bool = False,
     apply: bool = False,
+    exclude_patterns: list[str] | None = None,
 ) -> IndexResult:
     conn = connect(db_path)
     run_id: int | None = None
     try:
-        scanned_by_path = {e.relative_path: e for e in walk_root(root, scope)}
+        scanned_by_path = {e.relative_path: e for e in walk_root(root, scope, exclude_patterns)}
         existing_by_path = {r.path: r for r in list_file_rows(conn)}
 
         if scope is not None:

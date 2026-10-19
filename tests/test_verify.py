@@ -28,6 +28,20 @@ def _make_storage(tmp_path):
 # --- 3.1 verify engine: full taxonomy ---------------------------------------
 
 
+def test_excluded_directory_never_appears_in_verify(tmp_path):
+    root, db_path = _make_storage(tmp_path)
+    (root / "keep.txt").write_text("hello")
+    (root / "__pycache__").mkdir()
+    (root / "__pycache__" / "mod.pyc").write_text("junk")
+    run_index(root, db_path, apply=True, exclude_patterns=["__pycache__"])
+
+    result = run_verify(root, db_path, exclude_patterns=["__pycache__"])
+    paths = {e.relative_path for e in result.entries}
+
+    assert "keep.txt" in paths
+    assert not any("__pycache__" in p for p in paths)
+
+
 def test_verify_reports_ok_for_untouched_file(tmp_path):
     root, db_path = _make_storage(tmp_path)
     (root / "a.txt").write_text("hello")

@@ -31,6 +31,7 @@ class ResolvedSide:
     selectors: list[str] | None  # None means "whole root", no scope restriction
     other_contents: list[str] | None = None
     warnings: list[str] = field(default_factory=list)
+    exclude_patterns: list[str] = field(default_factory=list)
 
 
 def resolve_side(
@@ -42,7 +43,7 @@ def resolve_side(
     validate_selection_spec(spec)
 
     if spec.all:
-        return ResolvedSide(root=root, selectors=None)
+        return ResolvedSide(root=root, selectors=None, exclude_patterns=storage_config.exclude_patterns)
 
     if spec.profile is not None:
         categories = resolve_profile(spec.profile, storage_config, local_profiles)
@@ -50,7 +51,9 @@ def resolve_side(
         other_contents: list[str] | None = None
         for category in categories:
             if category == "other":
-                other_contents = resolve_other(root, storage_config.known_categories)
+                other_contents = resolve_other(
+                    root, storage_config.known_categories, storage_config.exclude_patterns
+                )
                 selectors.extend(other_contents)
             else:
                 selectors.append(category)
@@ -60,8 +63,14 @@ def resolve_side(
             selectors=normalized.paths,
             other_contents=other_contents,
             warnings=normalized.warnings,
+            exclude_patterns=storage_config.exclude_patterns,
         )
 
     combined = [*spec.folders, *spec.paths]
     normalized = normalize_selection(combined)
-    return ResolvedSide(root=root, selectors=normalized.paths, warnings=normalized.warnings)
+    return ResolvedSide(
+        root=root,
+        selectors=normalized.paths,
+        warnings=normalized.warnings,
+        exclude_patterns=storage_config.exclude_patterns,
+    )

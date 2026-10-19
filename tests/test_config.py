@@ -38,3 +38,23 @@ def test_mtime_tolerance_defaults_to_none_when_unset(tmp_path):
     loaded = read_storage_config(path)
 
     assert loaded.mtime_tolerance_ns is None
+
+
+def test_round_trip_preserves_exclude_patterns(tmp_path):
+    original = StorageConfig(id="x", name="x", exclude_patterns=[".venv", "*.pyc"])
+    path = tmp_path / "config.toml"
+
+    write_storage_config(path, original)
+    loaded = read_storage_config(path)
+
+    assert loaded.exclude_patterns == [".venv", "*.pyc"]
+
+
+def test_exclude_patterns_default_to_empty_when_unset(tmp_path):
+    original = StorageConfig(id="x", name="x")
+    path = tmp_path / "config.toml"
+
+    write_storage_config(path, original)
+    loaded = read_storage_config(path)
+
+    assert loaded.exclude_patterns == []
