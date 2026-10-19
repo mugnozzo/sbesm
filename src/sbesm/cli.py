@@ -306,13 +306,19 @@ def _cmd_duplicates(args: argparse.Namespace) -> int:
         verified_groups = verify_duplicate_groups(root, groups)
         for vg in verified_groups:
             print(f"sha256={vg.sha256} size={vg.size}")
-            print(f"  verified duplicates: {vg.verified_paths}")
+            print("  verified duplicates:")
+            for p in vg.verified_paths:
+                print(f"    {p}")
             if vg.stale_paths:
-                print(f"  stale-index (not confirmed): {vg.stale_paths}")
+                print("  stale-index (not confirmed):")
+                for p in vg.stale_paths:
+                    print(f"    {p}")
     else:
         print("Duplicates (index-based, not re-verified):")
         for group in groups:
-            print(f"sha256={group.sha256} size={group.size} paths={group.paths}")
+            print(f"sha256={group.sha256} size={group.size}")
+            for p in group.paths:
+                print(f"    {p}")
 
     return exitcodes.FINDINGS
 
@@ -378,10 +384,14 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         else:
             print(f"  {outcome.selector}: rsync exit={outcome.rsync_returncode}")
     if result.conflicts:
-        print(f"  conflicts: {[e.relative_path for e in result.conflicts]}")
+        print("  conflicts:")
+        for e in result.conflicts:
+            print(f"    {e.relative_path}")
     if result.dest_only:
         label = "deletion candidates" if args.delete else "destination-only (preserved)"
-        print(f"  {label}: {[e.relative_path for e in result.dest_only]}")
+        print(f"  {label}:")
+        for e in result.dest_only:
+            print(f"    {e.relative_path}")
     print(f"log: {result.log_path}")
 
     if any(o.rsync_returncode not in (0, None) for o in result.outcomes):

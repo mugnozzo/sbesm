@@ -100,6 +100,22 @@ def test_apply_refuses_on_content_conflict_without_overwrite_flag(tmp_path):
     assert (dest / "a.txt").read_text() == "dest version"  # untouched
 
 
+def test_conflict_error_lists_all_conflicting_paths_no_truncation(tmp_path):
+    source = _make_storage(tmp_path, "source")
+    dest = _make_storage(tmp_path, "dest")
+    for i in range(15):
+        (source / f"file{i}.txt").write_text("source version")
+        (dest / f"file{i}.txt").write_text("dest version")
+    run_index(source, source / ".sbesm" / "index.sqlite", apply=True)
+    run_index(dest, dest / ".sbesm" / "index.sqlite", apply=True)
+
+    with pytest.raises(UsageError) as excinfo:
+        run_sync(source, dest, None, apply=True)
+
+    for i in range(15):
+        assert f"file{i}.txt" in str(excinfo.value)
+
+
 def test_apply_with_overwrite_conflicts_copies_source_version(tmp_path):
     source = _make_storage(tmp_path, "source")
     dest = _make_storage(tmp_path, "dest")

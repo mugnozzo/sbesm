@@ -221,6 +221,17 @@ def test_render_preview_and_has_findings(tmp_path):
     assert has_findings(entries)
 
 
+def test_render_preview_lists_all_changed_paths_no_truncation(tmp_path):
+    scanned = _write_and_scan(tmp_path, "a.txt", b"x")
+    entries = [
+        ClassifiedEntry(f"file{i}.txt", Classification.NEW, scanned, None, "hash")
+        for i in range(15)
+    ]
+    text = render_preview(entries)
+    for i in range(15):
+        assert f"file{i}.txt" in text
+
+
 # --- 2.4.4 / 2.4.5 preview never mutates the DB ------------------------------
 
 

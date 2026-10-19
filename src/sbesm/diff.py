@@ -140,13 +140,13 @@ def render_diff_report(entries: list[DiffEntry]) -> str:
     conflicts = [e.relative_path for e in entries if e.status == DiffStatus.DIFFERENT]
     if conflicts:
         lines.append("  content conflicts (same path, different content):")
-        lines.extend(f"    {p}" for p in conflicts[:10])
+        lines.extend(f"    {p}" for p in conflicts)
 
     dest_only = [e.relative_path for e in entries if e.status == DiffStatus.DEST_ONLY]
     if dest_only:
         lines.append(
             "  destination-only (not necessarily historically deleted from source):"
         )
-        lines.extend(f"    {p}" for p in dest_only[:10])
+        lines.extend(f"    {p}" for p in dest_only)
 
     return "\n".join(lines)

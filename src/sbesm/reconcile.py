@@ -170,7 +170,7 @@ def render_reconcile_summary(entries: list[ReconcileEntry]) -> str:
     lines = [f"  {a.value}: {counts[a]}" for a in ReconcileAction if counts[a]]
     if not lines:
         lines = ["  (no files found in scope)"]
-    reconciled = [e.relative_path for e in entries if e.action == ReconcileAction.RECONCILED][:10]
+    reconciled = [e.relative_path for e in entries if e.action == ReconcileAction.RECONCILED]
     if reconciled:
         lines.append("  reconciled paths:")
         lines.extend(f"    {p}" for p in reconciled)

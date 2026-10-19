@@ -4,7 +4,13 @@ import os
 from sbesm.db import connect
 from sbesm.indexing import run_index
 from sbesm.migrations import MIGRATIONS, apply_migrations
-from sbesm.verify import VerifyStatus, has_verify_findings, run_verify
+from sbesm.verify import (
+    VerifiedEntry,
+    VerifyStatus,
+    has_verify_findings,
+    render_verify_summary,
+    run_verify,
+)
 
 
 def _make_storage(tmp_path):
@@ -31,6 +37,15 @@ def test_verify_reports_ok_for_untouched_file(tmp_path):
     entry = next(e for e in result.entries if e.relative_path == "a.txt")
     assert entry.status == VerifyStatus.OK
     assert not has_verify_findings([entry])
+
+
+def test_render_verify_summary_lists_all_anomalies_no_truncation():
+    entries = [
+        VerifiedEntry(f"bad{i}.txt", VerifyStatus.MISMATCH) for i in range(15)
+    ]
+    text = render_verify_summary(entries)
+    for i in range(15):
+        assert f"bad{i}.txt" in text
 
 
 def test_verify_catches_mismatch_even_with_restored_metadata(tmp_path):

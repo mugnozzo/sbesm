@@ -1,4 +1,4 @@
-from sbesm.diff import DiffStatus, has_diff_findings, run_diff
+from sbesm.diff import DiffEntry, DiffStatus, has_diff_findings, render_diff_report, run_diff
 from sbesm.indexing import run_index
 from sbesm.init_cmd import cmd_init
 from sbesm.scope import ResolvedSide
@@ -12,6 +12,20 @@ def _make_storage(tmp_path, name):
 
 def _status_for(entries, path):
     return next(e.status for e in entries if e.relative_path == path)
+
+
+def test_render_diff_report_lists_all_conflicts_no_truncation():
+    entries = [DiffEntry(f"conflict{i}.txt", DiffStatus.DIFFERENT) for i in range(15)]
+    text = render_diff_report(entries)
+    for i in range(15):
+        assert f"conflict{i}.txt" in text
+
+
+def test_render_diff_report_lists_all_dest_only_no_truncation():
+    entries = [DiffEntry(f"destonly{i}.txt", DiffStatus.DEST_ONLY) for i in range(15)]
+    text = render_diff_report(entries)
+    for i in range(15):
+        assert f"destonly{i}.txt" in text
 
 
 # --- 4.2 diff by path/metadata -----------------------------------------------

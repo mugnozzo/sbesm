@@ -164,7 +164,7 @@ def run_sync(
         raise UsageError(
             f"{len(conflicts)} content conflict(s) detected; pass --overwrite-conflicts "
             f"to apply anyway, or resolve them first. Conflicting paths: "
-            f"{[e.relative_path for e in conflicts][:10]}"
+            f"{[e.relative_path for e in conflicts]}"
         )
 
     if apply:

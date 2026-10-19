@@ -108,10 +108,10 @@ def render_preview(results: list[ClassifiedEntry]) -> str:
     lines = [f"  {c.value}: {counts[c]}" for c in Classification if counts[c]]
     if not lines:
         lines = ["  (no files found in scope)"]
-    samples = [r.relative_path for r in results if r.classification != Classification.UNCHANGED][:10]
-    if samples:
-        lines.append("  sample changed paths:")
-        lines.extend(f"    {p}" for p in samples)
+    changed = [r.relative_path for r in results if r.classification != Classification.UNCHANGED]
+    if changed:
+        lines.append("  changed paths:")
+        lines.extend(f"    {p}" for p in changed)
     return "\n".join(lines)
 
 

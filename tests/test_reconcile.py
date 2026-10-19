@@ -6,7 +6,13 @@ from sbesm.db import connect, get_file_row
 from sbesm.errors import UsageError
 from sbesm.indexing import run_index
 from sbesm.init_cmd import cmd_init
-from sbesm.reconcile import ReconcileAction, _apply_mtime, run_reconcile
+from sbesm.reconcile import (
+    ReconcileAction,
+    ReconcileEntry,
+    _apply_mtime,
+    render_reconcile_summary,
+    run_reconcile,
+)
 
 
 def _make_storage(tmp_path, name):
@@ -20,6 +26,15 @@ def _status_for(entries, path):
 
 
 # --- 6.1 find equal-content timestamp differences ---------------------------
+
+
+def test_render_reconcile_summary_lists_all_reconciled_paths_no_truncation():
+    entries = [
+        ReconcileEntry(f"file{i}.txt", ReconcileAction.RECONCILED) for i in range(15)
+    ]
+    text = render_reconcile_summary(entries)
+    for i in range(15):
+        assert f"file{i}.txt" in text
 
 
 def test_identical_content_different_mtime_is_a_candidate(tmp_path):

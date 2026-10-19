@@ -82,9 +82,9 @@ def render_verify_summary(results: list[VerifiedEntry]) -> str:
     lines = [f"  {s.value}: {counts[s]}" for s in VerifyStatus if counts[s]]
     if not lines:
         lines = ["  (no files found in scope)"]
-    problems = [r.relative_path for r in results if r.status in _FINDINGS_STATUSES][:10]
+    problems = [r.relative_path for r in results if r.status in _FINDINGS_STATUSES]
     if problems:
-        lines.append("  sample anomalies:")
+        lines.append("  anomalies:")
         lines.extend(f"    {p}" for p in problems)
     return "\n".join(lines)
 
