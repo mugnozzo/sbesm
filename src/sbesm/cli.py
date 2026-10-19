@@ -135,6 +135,10 @@ def build_parser() -> argparse.ArgumentParser:
 def _cmd_init(args: argparse.Namespace) -> int:
     config = cmd_init(Path(args.root), name=args.name)
     print(f"Initialized storage '{config.name}' (id={config.id}) at {args.root}")
+    if config.exclude_patterns:
+        print("Seeded exclude patterns from local defaults:")
+        for pattern in config.exclude_patterns:
+            print(f"  {pattern}")
     return exitcodes.SUCCESS
 
 

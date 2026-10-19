@@ -1,0 +1,7 @@
+# Sample ~/.config/sbesm/defaults.toml -- these exclude patterns are copied
+# into every new storage's own .sbesm/config.toml the moment you run
+# `sbesm init`. It's a one-time seed, not a live link: editing this file
+# later only affects storages initialized afterward.
+
+[exclude]
+patterns = [".venv", "__pycache__", "*.pyc", "node_modules", ".git"]
